@@ -55,6 +55,10 @@
 #include "KIM_SharedLibrarySchema.hpp"
 #endif
 
+#ifndef BASE64_HPP
+#include "KIM_Base64.hpp" // For base64 decoding
+#endif
+
 namespace
 {
 static void * const referencePointForKIM_Library = NULL;
@@ -649,7 +653,29 @@ int SharedLibrary::WriteParameterFileDirectory()
     std::ofstream fl;
     fl.open(specificationFilePathName.string().c_str(),
             std::ifstream::out | std::ifstream::binary);
-    fl.write(reinterpret_cast<const char *>(specificationData), len);
+    const std::size_t FILE_NEWLINE_PAD_OFFSET = 1;
+    const std::size_t PERLINE_PAD = 1;
+    
+    int usable_chars = static_cast<int>(len) - FILE_NEWLINE_PAD_OFFSET*2;
+    const unsigned char * file_start_ptr = specificationData + FILE_NEWLINE_PAD_OFFSET;
+    
+    // std::array<unsigned char, Base64::MAX_BINARY_WIDTH> binary_line{};
+    std::vector<unsigned char> binary_line(Base64::MAX_BINARY_WIDTH);
+
+    const int char_per_line = static_cast<int>(Base64::MAX_BASE64_WIDTH);
+
+    int char_remaining = usable_chars;
+    std::size_t out_len = 0;
+    unsigned int offset = 0;
+
+    while(char_remaining > 0){
+        int n_chars_this_line = std::min(char_per_line, char_remaining);
+        Base64::decode(file_start_ptr + offset, n_chars_this_line, binary_line.data(), out_len);
+        fl.write(reinterpret_cast<char *>(binary_line.data()), static_cast<std::streamsize>(out_len));
+        char_remaining -= (char_per_line + PERLINE_PAD);
+        offset += (char_per_line + PERLINE_PAD);
+    }
+
     if (!fl)
     {
       LOG_ERROR("Unable to get write parameter file.");
@@ -678,9 +704,32 @@ int SharedLibrary::WriteParameterFileDirectory()
     FILESYSTEM::Path const parameterFilePathName
         = parameterFileDirectoryName_ / parameterFileName;
     std::ofstream fl;
+    
     fl.open(parameterFilePathName.string().c_str(),
             std::ifstream::out | std::ifstream::binary);
-    fl.write(reinterpret_cast<const char *>(strPtr), length);
+      
+    const std::size_t FILE_NEWLINE_PAD_OFFSET = 1;
+    const std::size_t PERLINE_PAD = 1;
+    
+    int usable_chars = static_cast<int>(length) - FILE_NEWLINE_PAD_OFFSET*2;
+    const unsigned char * file_start_ptr = strPtr + FILE_NEWLINE_PAD_OFFSET;
+    
+    // std::array<unsigned char, Base64::MAX_BINARY_WIDTH> binary_line{};
+    std::vector<unsigned char> binary_line(Base64::MAX_BINARY_WIDTH);
+
+    const int char_per_line = static_cast<int>(Base64::MAX_BASE64_WIDTH);
+
+    int char_remaining = usable_chars;
+    std::size_t out_len = 0;
+    unsigned int offset = 0;
+
+    while(char_remaining > 0){
+        int n_chars_this_line = std::min(char_per_line, char_remaining);
+        Base64::decode(file_start_ptr + offset, n_chars_this_line, binary_line.data(), out_len);
+        fl.write(reinterpret_cast<char *>(binary_line.data()), static_cast<std::streamsize>(out_len));
+        char_remaining -= (char_per_line + PERLINE_PAD);
+        offset += (char_per_line + PERLINE_PAD);
+    }    
     if (!fl)
     {
       LOG_ERROR("Unable to get write parameter file.");
